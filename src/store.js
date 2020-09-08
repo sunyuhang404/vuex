@@ -3,13 +3,12 @@ import devtoolPlugin from './plugins/devtool'
 import ModuleCollection from './module/module-collection'
 import { forEachValue, isObject, isPromise, assert, partial } from './util'
 
-let Vue // bind on install
+// 定义局部 Vue 变量, 用来判断是否已经装载过和减少全局作用域查找
+let Vue
 
 export class Store {
   constructor (options = {}) {
-    // Auto install if it is not done yet and `window` has `Vue`.
-    // To allow users to avoid auto-installation in some cases,
-    // this code should be placed here. See #731
+    // 如果是浏览器环境下, 并且加载过 Vue, 就执行 install 方法
     if (!Vue && typeof window !== 'undefined' && window.Vue) {
       install(window.Vue)
     }
@@ -19,21 +18,38 @@ export class Store {
       assert(typeof Promise !== 'undefined', `vuex requires a Promise polyfill in this browser.`)
       assert(this instanceof Store, `store must be called with the new operator.`)
     }
-
+    
+    // 环境判断之后, 根据 new 构造传入的 options 或者默认值,初始化内部数据
     const {
       plugins = [],
       strict = false
     } = options
 
     // store internal state
+    // 是否在进行提交状态标识
     this._committing = false
+
+    // actions 操作对象
     this._actions = Object.create(null)
+
     this._actionSubscribers = []
+
+    // mutations 操作对象
     this._mutations = Object.create(null)
+
+    // 封装后的 getters 集合对象
     this._wrappedGetters = Object.create(null)
+
+    // Vuex 支持 store 分模块传入, 存储分析后的 modules
     this._modules = new ModuleCollection(options)
+
+    // 模块命名空间 map
     this._modulesNamespaceMap = Object.create(null)
+
+    // 订阅函数集合, Vuex 提供了 subscribe 功能
     this._subscribers = []
+
+    // Vue 组件用于 watch 监听变化
     this._watcherVM = new Vue()
     this._makeLocalGettersCache = Object.create(null)
 
@@ -536,6 +552,7 @@ function unifyObjectStyle (type, payload, options) {
   return { type, payload, options }
 }
 
+// install 方法把 Vuex 装载到 Vue 对象上
 export function install (_Vue) {
   if (Vue && _Vue === Vue) {
     if (__DEV__) {

@@ -1,3 +1,9 @@
+
+/**
+ * 把传入的 options 对象构造为一个 module 对象, 并循环调用 this.register([key], rawModule, false)
+ * 为其中的 modules 属性进行模块注册, 让他们都成为 modules 对象
+ * 最后 options 对象被构造成一个完成的组件树
+ */
 import Module from './module'
 import { assert, forEachValue } from '../util'
 

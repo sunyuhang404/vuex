@@ -1,6 +1,10 @@
 import { isObject } from './util'
 
 /**
+ * 提供 action, mutations, getters 的查找 API
+ */
+
+/**
  * Reduce the code which written in Vue.js for getting the state.
  * @param {String} [namespace] - Module's namespace
  * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.

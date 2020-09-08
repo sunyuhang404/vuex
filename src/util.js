@@ -1,3 +1,8 @@
+
+/**
+ * 提供一些工具方法
+ */
+
 /**
  * Get the first item that pass the test
  * by second argument function
