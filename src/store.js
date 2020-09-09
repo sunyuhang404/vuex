@@ -56,14 +56,16 @@ export class Store {
     // bind commit and dispatch to self
     const store = this
     const { dispatch, commit } = this
+
     this.dispatch = function boundDispatch (type, payload) {
       return dispatch.call(store, type, payload)
     }
+
     this.commit = function boundCommit (type, payload, options) {
       return commit.call(store, type, payload, options)
     }
 
-    // strict mode
+    // 绑定 dispatch 和 commit 之后, 设置为严格模式, 严格模式占用资源较多, 通常在开发模式开启
     this.strict = strict
 
     const state = this._modules.root.state
@@ -71,6 +73,7 @@ export class Store {
     // init root module.
     // this also recursively registers all sub-modules
     // and collects all module getters inside this._wrappedGetters
+    // 模块的安装
     installModule(this, state, [], this._modules.root)
 
     // initialize the store vm, which is responsible for the reactivity
@@ -112,12 +115,14 @@ export class Store {
       }
       return
     }
+    // 修改 state 的方法, 其它修改 state 的方法都是非法修改
     this._withCommit(() => {
       entry.forEach(function commitIterator (handler) {
         handler(payload)
       })
     })
 
+    // 订阅者函数遍历执行, 传入当前的 mutation 对象和当前的 state
     this._subscribers
       .slice() // shallow copy to prevent iterator invalidation if subscriber synchronously calls unsubscribe
       .forEach(sub => sub(mutation, this.state))
@@ -133,13 +138,16 @@ export class Store {
     }
   }
 
+  // dispatch 实现
   dispatch (_type, _payload) {
     // check object-style dispatch
+    // 配置参数处理
     const {
       type,
       payload
     } = unifyObjectStyle(_type, _payload)
 
+    // 当前 type 下所有 action 处理函数集合
     const action = { type, payload }
     const entry = this._actions[type]
     if (!entry) {
@@ -260,10 +268,22 @@ export class Store {
     resetStore(this, true)
   }
 
+  /**
+   * 代理方法
+   * 所有触发 mutation 修改 state 的操作都经过该方法, 从这里进行统一监控 state 状态的修改
+   * @param {修改 state 的方法} fn
+   */
   _withCommit (fn) {
+    // 保存之前的提交状态
     const committing = this._committing
+
+    // 进行本次提交, 如果不设置为 true, strict 模式下, Vuex 会产生非法修改 state 的警告
     this._committing = true
+
+    // 修改 state 的操作
     fn()
+
+    // 修改完成, 还原修改之前的状态
     this._committing = committing
   }
 }
@@ -294,7 +314,9 @@ function resetStore (store, hot) {
   resetStoreVM(store, state, hot)
 }
 
+// store 组件初始化
 function resetStoreVM (store, state, hot) {
+  // 缓存之前的 vm 组件
   const oldVm = store._vm
 
   // bind store public getters
@@ -303,6 +325,9 @@ function resetStoreVM (store, state, hot) {
   store._makeLocalGettersCache = Object.create(null)
   const wrappedGetters = store._wrappedGetters
   const computed = {}
+
+  // 循环所有处理过的 getters, 新建 computed 对象进行存储
+  // 通过 Object.defineProperty 为 getters 对象增加属性, 这样通过 this.$store.getters.xxxgetter 能够访问到该 getters
   forEachValue(wrappedGetters, (fn, key) => {
     // use computed to leverage its lazy-caching mechanism
     // direct inline function use will lead to closure preserving oldVm.
@@ -319,6 +344,8 @@ function resetStoreVM (store, state, hot) {
   // some funky global mixins
   const silent = Vue.config.silent
   Vue.config.silent = true
+
+  // 设置新的 storeVm, 把当前初始化的 state 和 getters 作为 computed 属性
   store._vm = new Vue({
     data: {
       $$state: state
@@ -329,6 +356,7 @@ function resetStoreVM (store, state, hot) {
 
   // enable strict mode for new vm
   if (store.strict) {
+    // 通过 $watch 对 state 进行监听,  禁止使用 mutation 以外的方法修改 state
     enableStrictMode(store)
   }
 
@@ -336,6 +364,7 @@ function resetStoreVM (store, state, hot) {
     if (hot) {
       // dispatch changes in all subscribed watchers
       // to force getter re-evaluation for hot reloading.
+      // 强制更死你所有监听者, 更新生效之后, 执行 vm 组件的 destory 方法进行销毁
       store._withCommit(() => {
         oldVm._data.$$state = null
       })
@@ -344,6 +373,7 @@ function resetStoreVM (store, state, hot) {
   }
 }
 
+// 初始化跟组件, 注册所有子组件, 把其中所有的 getters 存储到 this._wrappedGetters 属性中
 function installModule (store, rootState, path, module, hot) {
   const isRoot = !path.length
   const namespace = store._modules.getNamespace(path)
@@ -357,7 +387,9 @@ function installModule (store, rootState, path, module, hot) {
   }
 
   // set state
+  // 非根组件设置 state 方法
   if (!isRoot && !hot) {
+    // 如果不是根组件并且不是 hot 的情况, 通过 getNestedState 方法获取该 module 父级的 state
     const parentState = getNestedState(rootState, path.slice(0, -1))
     const moduleName = path[path.length - 1]
     store._withCommit(() => {
@@ -374,17 +406,20 @@ function installModule (store, rootState, path, module, hot) {
 
   const local = module.context = makeLocalContext(store, namespace, path)
 
+  // 注册模块的 mutation
   module.forEachMutation((mutation, key) => {
     const namespacedType = namespace + key
     registerMutation(store, namespacedType, mutation, local)
   })
 
+  // 注册 action
   module.forEachAction((action, key) => {
     const type = action.root ? key : namespace + key
     const handler = action.handler || action
     registerAction(store, type, handler, local)
   })
 
+  // 注册 getters
   module.forEachGetter((getter, key) => {
     const namespacedType = namespace + key
     registerGetter(store, namespacedType, getter, local)
@@ -477,9 +512,18 @@ function makeLocalGetters (store, namespace) {
   return store._makeLocalGettersCache[namespace]
 }
 
+
+// 获取 store 中对应的 mutation type 的处理函数集合, 把新的处理函数 push进去
+// 这里把我们设置在 mutations type 上对应的 handler 进行封装, 给原函数传入了 state
+// 在执行 commit('xxx', payload) 的时候, type 为 xxx 的 mutation 的所有 handler 都会接收到 state 以及 payload
+// 这就是在 handler 里拿到 state 的原因
 function registerMutation (store, type, handler, local) {
+  // 取出对应 type 的 mutations-handler 集合
   const entry = store._mutations[type] || (store._mutations[type] = [])
+
+  // commit 实际调用的不是我们传入的 handler, 是经过封装的
   entry.push(function wrappedMutationHandler (payload) {
+    // 调用 handler 并把 state 传入
     handler.call(store, local.state, payload)
   })
 }
